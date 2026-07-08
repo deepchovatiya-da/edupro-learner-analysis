@@ -125,8 +125,3 @@ st.subheader("6. Course Duration vs. Rating (Tested, Not a Standout Finding)")
 st.image("chart_duration_rating.png")
 corr = courses["CourseDuration"].corr(courses["CourseRating"])
 st.caption(f"Weak positive correlation (r≈{corr:.2f}). Explains ~4% of rating variance — real, but small.")
-st.caption(
-    f"Correlation between course duration and rating: r={corr:.2f} — weak/no relationship. "
-    "Duration does not meaningfully predict learner satisfaction in this dataset. "
-    "Included here for completeness, not visualized as a chart since there's no pattern to show."
-)
