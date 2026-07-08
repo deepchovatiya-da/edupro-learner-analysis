@@ -31,17 +31,18 @@ Top 10% of users account for 42% of all enrollments, roughly 4x what even distri
 **4. Course duration vs. rating** — weak positive correlation (r≈0.21), explains ~4% of rating variance. Real but minor.
 
 ## Repository Structure
-├── eda.ipynb                # Full analysis: merging, EDA, chi-square testing, correlation checks
-├── app.py                   # Streamlit dashboard (deployed)
-├── edupro_data.xlsx         # Source dataset (Users, Courses, Transactions sheets)
-├── requirements.txt         # Python dependencies for deployment
-├── chart_age_rate.png        # Age vs enrollment rate (normalized)
-├── chart_gender_rate.png     # Gender vs enrollment rate (normalized)
-├── chart_category.png        # Category popularity with mean reference line
-├── chart_level_rate.png      # Course level demand (normalized by supply)
-├── chart_concentration.png   # Enrollment concentration (Lorenz-style curve)
-├── chart_duration_rating.png # Duration vs rating scatter
-└── report.md                 # Written findings summary
+
+- **eda.ipynb**: Full analysis: merging, EDA, chi-square testing, correlation checks
+- **app.py**: Streamlit dashboard (deployed)
+- **edupro_data.xlsx**: Source dataset (Users, Courses, Transactions sheets)
+- **requirements.txt**: Python dependencies for deployment
+- **chart_age_rate.png**: Age vs enrollment rate (normalized)
+- **chart_gender_rate.png**: Gender vs enrollment rate (normalized)
+- **chart_category.png**: Category popularity with mean reference line
+- **chart_level_rate.png**: Course level demand (normalized by supply)
+- **chart_concentration.png**: Enrollment concentration (Lorenz-style curve)
+- **chart_duration_rating.png**: Duration vs rating scatter
+- **report.md**: Written findings summary
 
 ## Tech Stack
 
