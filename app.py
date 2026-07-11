@@ -1,32 +1,44 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 
+# Set up the main layout and title of the Streamlit app
 st.set_page_config(page_title="EduPro Learner Analytics", layout="wide")
 
-# ---------- Load & merge data ----------
+# ==========================================
+# 1. DATA LOADING & PREPARATION
+# ==========================================
+
+# Load the raw data from the Excel file sheets
 users = pd.read_excel("edupro_data.xlsx", sheet_name="Users")
 courses = pd.read_excel("edupro_data.xlsx", sheet_name="Courses")
 transactions = pd.read_excel("edupro_data.xlsx", sheet_name="Transactions")
+
+# Merge all three tables together into one master dataframe ('df')
 df = transactions.merge(users, on="UserID").merge(courses, on="CourseID")
 
+# Create age buckets
 bins = [0, 17, 24, 29, 35]
 labels = ["<18", "18-24", "25-29", "30-35"]
 df["AgeGroup"] = pd.cut(df["Age"], bins=bins, labels=labels)
 
-user_age_group = users.copy()
-user_age_group["AgeGroup"] = pd.cut(user_age_group["Age"], bins=bins, labels=labels)
-users_per_group = user_age_group["AgeGroup"].value_counts()
-
 st.title("EduPro Learner Analytics Dashboard")
 
-# ---------- Sidebar filters (brief requirement) ----------
+# ==========================================
+# 2. SIDEBAR FILTERS
+# ==========================================
+
 st.sidebar.header("Filters")
+
 age_filter = st.sidebar.multiselect("Age Group", options=labels, default=labels)
 gender_filter = st.sidebar.multiselect("Gender", options=df["Gender"].unique(), default=list(df["Gender"].unique()))
 category_filter = st.sidebar.multiselect("Course Category", options=df["CourseCategory"].unique(), default=list(df["CourseCategory"].unique()))
 level_filter = st.sidebar.multiselect("Course Level", options=df["CourseLevel"].unique(), default=list(df["CourseLevel"].unique()))
 
+# ==========================================
+# 3. APPLYING FILTERS 
+# ==========================================
+
+# Filter the master dataframe based on user selections
 filtered = df[
     df["AgeGroup"].isin(age_filter) &
     df["Gender"].isin(gender_filter) &
@@ -34,94 +46,109 @@ filtered = df[
     df["CourseLevel"].isin(level_filter)
 ]
 
+# Deduplicate for accurate user/course level metrics
+filtered_users = filtered.drop_duplicates(subset=["UserID"])
+filtered_courses = filtered.drop_duplicates(subset=["CourseID"])
+
+# ==========================================
+# 4. DASHBOARD VISUALIZATIONS
+# ==========================================
+
 # ---------- Top-line KPIs ----------
 col1, col2, col3 = st.columns(3)
 col1.metric("Total Enrollments (filtered)", f"{len(filtered):,}")
-col2.metric("Unique Learners (filtered)", f"{filtered['UserID'].nunique():,}")
-col3.metric("Unique Courses (filtered)", f"{filtered['CourseID'].nunique():,}")
+col2.metric("Unique Learners (filtered)", f"{filtered_users['UserID'].nunique():,}")
+col3.metric("Unique Courses (filtered)", f"{filtered_courses['CourseID'].nunique():,}")
 
 st.markdown("---")
 
-# ---------- 1. strongest finding not in the brief's module list ----------
+# ---------- Module 1: Enrollment Concentration ----------
 st.header("1. Enrollment Concentration Among Users")
-user_enrollment_counts = df.groupby("UserID")["TransactionID"].count().sort_values(ascending=False)
-top_10_pct = int(len(user_enrollment_counts) * 0.1)
-top_10_share = user_enrollment_counts.head(top_10_pct).sum() / user_enrollment_counts.sum()
 
-st.metric("Top 10% of users' share of total enrollments", f"{top_10_share*100:.1f}%")
-st.image("chart_concentration.png")
-st.caption(
-    "This is the strongest behavioral finding in the dataset: a small subset of "
-    "highly active learners accounts for a disproportionate share of enrollments — "
-    "roughly 4x what uniform random activity would produce. Recommend prioritizing "
-    "retention/engagement strategy for this segment over demographic targeting, "
-    "since age and gender showed no meaningful predictive value above."
-)
+if not filtered.empty:
+    user_enrollment_counts = filtered.groupby("UserID")["TransactionID"].count().sort_values(ascending=False)
+    top_10_pct = max(1, int(len(user_enrollment_counts) * 0.1)) 
+    top_10_share = user_enrollment_counts.head(top_10_pct).sum() / user_enrollment_counts.sum()
+
+    st.metric("Top 10% of users' share of total enrollments", f"{top_10_share*100:.1f}%")
+    
+    st.write("**Distribution of Courses per Learner**")
+    enrollment_distribution = user_enrollment_counts.value_counts().sort_index()
+    
+    st.bar_chart(enrollment_distribution)
+    st.caption(
+        "X-axis: Number of courses taken. Y-axis: Number of learners. "
+        "Notice how a small subset of highly active learners accounts for a disproportionate share of enrollments."
+    )
+else:
+    st.write("No data available for the current filter selection.")
 
 st.markdown("---")
 
 # ---------- Module 2: Course Category Popularity ----------
 st.header("2. Course Category Popularity")
-category_counts = df["CourseCategory"].value_counts()
-cat_mean = category_counts.mean()
+if not filtered.empty:
+    category_counts = filtered["CourseCategory"].value_counts()
+    cat_mean = category_counts.mean()
 
-fig, ax = plt.subplots(figsize=(8, 4))
-category_counts.plot(kind="bar", ax=ax, color="seagreen")
-ax.axhline(cat_mean, color="black", linestyle="--", label=f"Mean ({cat_mean:.0f})")
-ax.set_ylabel("Enrollments")
-ax.legend()
-plt.xticks(rotation=45, ha="right")
-st.pyplot(fig)
-
-st.caption(
-    "Data Science shows the highest enrollment (916 vs mean 833, z≈2.67). "
-    "This is a borderline signal (~4-5% probability by chance with 12 categories) "
-    "— not confirmed, and does not hold when tested against age subgroups (p=0.179). "
-    "Treat as a lead for further investigation, not a confirmed demand pattern."
-)
+    # Display the mean as text above the chart since native Streamlit charts don't use dashed lines
+    st.write(f"**Average Enrollments per Category:** {cat_mean:.0f}")
+    
+    # REPLACED MATPLOTLIB: Now using native Streamlit interactive chart
+    st.bar_chart(category_counts)
+else:
+    st.write("No data available for the current filter selection.")
 
 st.markdown("---")
 
 # ---------- Module 3: Learner Demographic Overview ----------
 st.header("3. Learner Demographic Overview")
 col1, col2 = st.columns(2)
+
 with col1:
-    st.write("Age Distribution")
-    st.bar_chart(users["Age"].value_counts().sort_index())
+    st.write("**Age Distribution**")
+    st.bar_chart(filtered_users["Age"].value_counts().sort_index())
 with col2:
-    st.write("Gender Distribution")
-    st.bar_chart(users["Gender"].value_counts())
+    st.write("**Gender Distribution**")
+    st.bar_chart(filtered_users["Gender"].value_counts())
 
 st.markdown("---")
 
 # ---------- Module 4: Age-wise Enrollment Analysis ----------
 st.header("4. Age-wise Enrollment Analysis")
-age_enrollments = df["AgeGroup"].value_counts()
-age_rate = age_enrollments / users_per_group
+age_enrollments = filtered["AgeGroup"].value_counts()
+filtered_users_per_group = filtered_users["AgeGroup"].value_counts()
+
+age_rate = (age_enrollments / filtered_users_per_group).fillna(0)
 st.bar_chart(age_rate)
-st.caption(
-    "Per-learner enrollment rate by age group. Range: 3.26–3.39 courses/learner — "
-    "statistically flat. Age does not predict enrollment volume in this dataset "
-    "(raw counts alone are misleading here due to unequal group sizes)."
-)
+st.caption("Per-learner enrollment rate by age group. Age does not strongly predict enrollment volume in this dataset.")
 
 st.markdown("---")
 
 # ---------- Module 5: Gender-based Course Preference Analysis ----------
 st.header("5. Gender-based Course Preference Analysis")
-gender_counts_users = users["Gender"].value_counts()
-gender_counts_enroll = df["Gender"].value_counts()
-gender_rate = gender_counts_enroll / gender_counts_users
+gender_counts_users = filtered_users["Gender"].value_counts()
+gender_counts_enroll = filtered["Gender"].value_counts()
+
+gender_rate = (gender_counts_enroll / gender_counts_users).fillna(0)
 st.bar_chart(gender_rate)
-st.caption(
-    "Per-learner enrollment rate by gender: Female 3.34, Male 3.33. "
-    "Chi-square test on gender vs course level: p=0.906 — no significant "
-    "relationship. Gender does not predict enrollment behavior in this dataset."
-)
+st.caption("Per-learner enrollment rate by gender. Gender does not predict enrollment behavior in this dataset.")
 
 st.markdown("---")
 
-st.subheader("6. Course Duration vs. Rating (Tested, Not a Standout Finding)")
-st.image("chart_duration_rating.png")
-corr = courses["CourseDuration"].corr(courses["CourseRating"])
-st.caption(f"Weak positive correlation (r≈{corr:.2f}). Explains ~4% of rating variance — real, but small.")
+# ---------- Module 6: Course Duration vs. Rating ----------
+st.header("6. Course Duration vs. Rating")
+
+if len(filtered_courses) > 1:
+    corr = filtered_courses["CourseDuration"].corr(filtered_courses["CourseRating"])
+    st.write(f"**Correlation Coefficient (r): {corr:.2f}**")
+    
+    st.scatter_chart(
+        data=filtered_courses,
+        x="CourseDuration",
+        y="CourseRating",
+        color="#2E86C1" 
+    )
+    st.caption("Weak positive correlation. Explains ~4% of rating variance — real, but small.")
+else:
+    st.write("Not enough course data in current filter to calculate correlation or plot chart.")
